@@ -1,5 +1,6 @@
 package com.example.myapplication;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
@@ -14,6 +15,8 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.BatteryManager;
+import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.provider.Settings;
@@ -40,7 +43,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.TreeMap;
 
 
@@ -62,16 +67,34 @@ public class MainActivity extends AppCompatActivity implements PictureCapturingL
     private int vidTime;
     public static SensorManager sensorManager;
     private String lastPres = null;
+    private int batteryLevel = -1;
+    private BroadcastReceiver mBroadcastReceiver;
+    private static final int MY_PERMISSIONS_REQUEST_ACCESS_CODE = 1;
 
 
 
 
+
+    private static final String[] requiredPermissions = {
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.CAMERA,
+            android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            android.Manifest.permission.INTERNET,
+            android.Manifest.permission.READ_EXTERNAL_STORAGE,
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_NETWORK_STATE,
+            //Manifest.permission.RECEIVE_BOOT_COMPLETED,
+            //Manifest.permission.WAKE_LOCK,
+            //Manifest.permission.FOREGROUND_SERVICE,
+            android.Manifest.permission.RECORD_AUDIO
+    };
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
 
         // Here we get a reference to the image we will modify when a notification is received
         interceptedNotificationImageView
@@ -91,15 +114,91 @@ public class MainActivity extends AppCompatActivity implements PictureCapturingL
 
         //CAMERA
         videoService = VideoCapturingServiceImpl.getInstance(this);
-
+//        checkPermissions();
     }
+    private BroadcastReceiver BatteryReceiver = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            boolean batteryLow = intent.getAction().equals(Intent.ACTION_BATTERY_LOW);
+            batteryLevel = getBatteryPercentage(getApplicationContext());
+
+//            TextView batterLevel = (TextView) findViewById(R.id.BAT);
+//            batterLevel.setText(batteryLevel + "%");
+            Log.i("BAT", batteryLevel + "%");
+        }
+    };
+
+    public static int getBatteryPercentage(Context context) {
+
+        IntentFilter iFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+        Intent batteryStatus = context.registerReceiver(null, iFilter);
+
+        int level = batteryStatus != null ? batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) : -1;
+        int scale = batteryStatus != null ? batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1) : -1;
+
+        float batteryPct = level / (float) scale;
+
+        return (int) (batteryPct * 100);
+    }
+
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        //Code to refresh preferences
+//        getPreferences();
+        //initGeiger();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[],
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        switch (requestCode) {
+            case MY_PERMISSIONS_REQUEST_ACCESS_CODE: {
+                if (!(grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+                    checkPermissions();
+                }
+            }
+        }
+    }
+
+    /**
+     * checking  permissions at Runtime.
+     */
+    @TargetApi(Build.VERSION_CODES.M)
+    private void checkPermissions() {
+        final List<String> neededPermissions = new ArrayList<>();
+        for (final String permission : requiredPermissions) {
+            if (ContextCompat.checkSelfPermission(getApplicationContext(),
+                    permission) != PackageManager.PERMISSION_GRANTED) {
+                neededPermissions.add(permission);
+            }
+        }
+        if (!neededPermissions.isEmpty()) {
+            requestPermissions(neededPermissions.toArray(new String[]{}),
+                    MY_PERMISSIONS_REQUEST_ACCESS_CODE);
+        }
+    }
+
 
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        unregisterReceiver(imageChangeBroadcastReceiver);
+        try {
+            unregisterReceiver(BatteryReceiver);
+            unregisterReceiver(mBroadcastReceiver);
+            unregisterReceiver(imageChangeBroadcastReceiver);
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+        }
+
+        String message = "MAIN_DESTROYED";
+        Log.i("MAN", message);
+
     }
+
 
     // Change Intercepted Notification Image
     private void changeInterceptedNotificationImage(int notificationCode) {

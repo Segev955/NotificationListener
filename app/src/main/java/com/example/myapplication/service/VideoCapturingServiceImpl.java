@@ -27,7 +27,6 @@ import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 
 
-
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -153,11 +152,15 @@ public class VideoCapturingServiceImpl extends APictureCapturingService {
         Log.d(TAG, "opening camera " + currentCameraId);
         try {
             if (ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
-                    == PackageManager.PERMISSION_GRANTED
-                    && ActivityCompat.checkSelfPermission(context,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE)
                     == PackageManager.PERMISSION_GRANTED) {
-                manager.openCamera(currentCameraId, stateCallback, null);
+                System.out.println("111111111111");
+//                if (ActivityCompat.checkSelfPermission(context,
+//                        Manifest.permission.WRITE_EXTERNAL_STORAGE)
+//                        == PackageManager.PERMISSION_GRANTED) {
+//                    System.out.println("222222222222");
+                    manager.openCamera(currentCameraId, stateCallback, null);
+
+//                }
             }
         } catch (final Exception e) {
             Log.e(TAG, " exception occurred while opening camera " + currentCameraId, e);
@@ -449,8 +452,11 @@ public class VideoCapturingServiceImpl extends APictureCapturingService {
         final String pathname = Environment.getExternalStorageDirectory() + File.separator + "prbl" + File.separator + "vid" + File.separator;
         final File outputFile = new File(pathname + pictureFile + ".mp4");
 
+
         pictureUrl = pathname + pictureFile;
         compressUrl = pathname + "/compressed/" + pictureFile;
+
+
 
         Log.i("VDO", outputFile.getName());
 //        LoRaSendMessage.performPostCall(outputFile.getName(), 3);
@@ -478,7 +484,7 @@ public class VideoCapturingServiceImpl extends APictureCapturingService {
             med.setDataSource(pictureUrl + ".mp4");
             ByteArrayOutputStream out = new ByteArrayOutputStream();
 
-            Bitmap bmp = med.getFrameAtTime(24*10*1000*5, FFmpegMediaMetadataRetriever.OPTION_CLOSEST);
+            Bitmap bmp = med.getFrameAtTime(24 * 10 * 1000 * 5, FFmpegMediaMetadataRetriever.OPTION_CLOSEST);
 
             bmp.compress(Bitmap.CompressFormat.JPEG, 90, out);
             //convert array of bytes into file
@@ -520,6 +526,7 @@ public class VideoCapturingServiceImpl extends APictureCapturingService {
         } catch (RuntimeException stopException) {
             mMediaRecorder.reset();
         } catch (IOException e) {
+            System.out.println("here");
             e.printStackTrace();
         }
 
