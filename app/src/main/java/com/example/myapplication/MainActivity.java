@@ -8,26 +8,65 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.provider.Settings;
 
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.Toast;
 
-public class MainActivity extends AppCompatActivity {
+import com.example.myapplication.service.APictureCapturingService;
+import com.example.myapplication.service.PictureCapturingListener;
+import com.example.myapplication.service.VideoCapturingServiceImpl;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.TreeMap;
+
+
+public class MainActivity extends AppCompatActivity implements PictureCapturingListener, ActivityCompat.OnRequestPermissionsResultCallback, SensorEventListener
+{
 
     private static final String ENABLED_NOTIFICATION_LISTENERS = "enabled_notification_listeners";
     private static final String ACTION_NOTIFICATION_LISTENER_SETTINGS = "android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS";
+    private static final int REQUEST_IMAGE_CAPTURE = 1;
+    private Context mContext;
+    private static final int REQUEST_CAMERA_PERMISSION = 2;
 
     private ImageView interceptedNotificationImageView;
     private ImageChangeBroadcastReceiver imageChangeBroadcastReceiver;
     private AlertDialog enableNotificationListenerAlertDialog;
+
+    private APictureCapturingService videoService;
+    private boolean cameraClosed = true;
+    private int vidTime;
+    public static SensorManager sensorManager;
+    private String lastPres = null;
+
+
+
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,7 +78,7 @@ public class MainActivity extends AppCompatActivity {
                 = (ImageView) this.findViewById(R.id.intercepted_notification_logo);
 
         // If the user did not turn the notification listener service on we prompt him to do so
-        if(!isNotificationServiceEnabled()){
+        if (!isNotificationServiceEnabled()) {
             enableNotificationListenerAlertDialog = buildNotificationServiceAlertDialog();
             enableNotificationListenerAlertDialog.show();
         }
@@ -48,8 +87,13 @@ public class MainActivity extends AppCompatActivity {
         imageChangeBroadcastReceiver = new ImageChangeBroadcastReceiver();
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction("com.example.myapplication");
-        registerReceiver(imageChangeBroadcastReceiver,intentFilter);
+        registerReceiver(imageChangeBroadcastReceiver, intentFilter);
+
+        //CAMERA
+        videoService = VideoCapturingServiceImpl.getInstance(this);
+
     }
+
 
     @Override
     protected void onDestroy() {
@@ -58,8 +102,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // Change Intercepted Notification Image
-    private void changeInterceptedNotificationImage(int notificationCode){
-        switch(notificationCode){
+    private void changeInterceptedNotificationImage(int notificationCode) {
+        switch (notificationCode) {
             case MyNotificationListenerService.InterceptedNotificationCode.FACEBOOK_CODE:
                 interceptedNotificationImageView.setImageResource(R.drawable.facebook_logo);
                 break;
@@ -79,7 +123,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     //Verifies if the notification listener service is enabled.
-    private boolean isNotificationServiceEnabled(){
+    private boolean isNotificationServiceEnabled() {
         String pkgName = getPackageName();
         final String flat = Settings.Secure.getString(getContentResolver(),
                 ENABLED_NOTIFICATION_LISTENERS);
@@ -97,12 +141,45 @@ public class MainActivity extends AppCompatActivity {
         return false;
     }
 
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+
+        Sensor sensor = event.sensor;
+        if ((sensor.getType() == Sensor.TYPE_PRESSURE)) {
+            sensorManager.unregisterListener(MainActivity.this);
+            String pres = String.valueOf(event.values[0]);
+            String tPres = String.valueOf((long) event.values[0] / 10); // filter for larger changes
+
+            if (null == this.lastPres || !this.lastPres.equalsIgnoreCase(tPres)) {
+//                TextView change_pres = (TextView) findViewById(R.id.PRES);
+//                change_pres.setText(pres);
+                Log.i("PRE", pres);
+                this.lastPres = tPres;
+            }
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+    }
+
+    @Override
+    public void onCaptureDone(String pictureUrl, byte[] pictureData) {
+
+    }
+
+    @Override
+    public void onDoneCapturingAllPhotos(TreeMap<String, byte[]> picturesTaken) {
+
+    }
+
     /**
      * Image Change Broadcast Receiver.
      * We use this Broadcast Receiver to notify the Main Activity when
      * a new notification has arrived, so it can properly change the
      * notification image
-     * */
+     */
     public class ImageChangeBroadcastReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -118,7 +195,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     void takePhoto (Intent intent) {
-        startActivity(intent);
+        if (videoService != null) {
+            cameraClosed = false;
+            videoService.setVidTime(vidTime);
+            videoService.startCapturing(MainActivity.this);
+        }
 //        Intent cameraServiceIntent = new Intent(this, Camera2Service.class);
 //        startService(cameraServiceIntent);
     }
